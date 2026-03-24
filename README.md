@@ -1,112 +1,76 @@
-# microWakeWord Trainer (CLI / RunPod)
+# microWakeWord Trainer (RunPod)
 
-Train **microWakeWord** detection models from the command line on **RunPod GPU pods**.
-
-No custom Docker image. No Jupyter notebooks. Just clone, set up, and train.
+Train custom **microWakeWord** wake word models on **RunPod GPU pods**. SSH in, set up, train.
 
 ---
 
-## RunPod Setup (Step by Step)
+## Step 1: Create a RunPod Account
 
-### Step 1: Create a RunPod Account
+Go to [runpod.io](https://www.runpod.io/) and sign up. Add credits or a payment method.
 
-Go to [runpod.io](https://www.runpod.io/) and create an account. Add credits or connect a payment method.
+## Step 2: Create a Network Volume
 
-### Step 2: Create a Network Volume
+This is where your datasets, Python environment, and trained models are stored. It persists even when your pod is stopped.
 
-Datasets and models need persistent storage (~100GB). Without a network volume, everything is lost when the pod stops.
-
-1. In the RunPod dashboard, go to **Storage**
+1. Go to **Storage** in the sidebar
 2. Click **+ Network Volume**
-3. Set the size to **100 GB** (or more)
-4. Pick a datacenter region (remember which one — your pod must be in the same region)
-5. Name it something like `mww-data`
+3. Set size to **100 GB**
+4. Pick a datacenter region (remember this — your pod needs to be in the same region)
+5. Name it `mww-data`
 6. Click **Create**
 
-### Step 3: Deploy a GPU Pod
+## Step 3: Deploy a Pod
 
 1. Go to **Pods** → **+ Deploy**
-2. Choose a GPU — any NVIDIA GPU works (RTX 3090, RTX 4090, A40, etc.)
-3. Under **Template**, pick **RunPod Pytorch 2.4.0** (or any stock template with Python 3 and CUDA)
-4. Under **Volume**, attach your network volume from Step 2 and set the mount path to `/data`
-5. **(Optional)** Under **Environment Variables**, add these for auto-pushing models to GitHub:
-   - `GITHUB_TOKEN` = your GitHub personal access token (see [GitHub Integration](#github-integration))
-   - `GITHUB_REPO` = `owner/repo` (e.g., `myuser/my-wakewords`)
+2. Pick any NVIDIA GPU (RTX 3090, RTX 4090, A40, etc.)
+3. Click **Edit Template** and set the **Docker image** to:
+   ```
+   ghcr.io/bigpappy098/microwakeword-trainer:latest
+   ```
+4. Attach your **network volume** from Step 2 and set the mount path to `/data`
+5. **(Optional)** Add environment variables to auto-push models to GitHub after training:
+   - `GITHUB_TOKEN` = your personal access token ([how to create one](#github-integration))
+   - `GITHUB_REPO` = `owner/repo` (e.g. `myuser/my-wakewords`)
 6. Click **Deploy**
 
-### Step 4: Connect via SSH or Web Terminal
+## Step 4: Connect to Your Pod
 
 Once the pod shows **Running**:
 
 - **Web Terminal**: Click **Connect** → **Start Web Terminal** → **Connect to Web Terminal**
-- **SSH**: Click **Connect**, copy the SSH command, and run it in your local terminal:
-  ```bash
-  ssh root@<pod-ip> -p <port> -i ~/.ssh/id_rsa
-  ```
+- **SSH**: Click **Connect**, copy the SSH command, run it locally
 
-### Step 5: Clone This Repo
+You'll see a welcome screen with available commands.
 
-```bash
-git clone https://github.com/BigPappy098/microWakeWord-Trainer-Nvidia-Docker.git /root/mww-scripts
-```
-
-This puts all the training scripts into `/root/mww-scripts/`.
-
-### Step 6: Set Up Your Shell
-
-Copy the custom `.bashrc` which adds the scripts to your PATH and sets up the environment:
-
-```bash
-cp /root/mww-scripts/.bashrc ~/.bashrc
-source ~/.bashrc
-```
-
-You should see the **microWakeWord Trainer** welcome message with available commands.
-
-### Step 7: Run Setup (First Time Only)
+## Step 5: Run Setup (First Time Only)
 
 ```bash
 setup
 ```
 
-This does two things:
-1. **Creates the Python virtual environment** — installs TensorFlow, PyTorch, and all training dependencies into `/data/.venv`
-2. **Downloads training datasets** — background noise, speech corpora, room impulse responses (~50GB)
+This installs the Python environment and downloads ~50GB of training datasets. It takes 30-60+ minutes on the first run.
 
-This takes a while on the first run (30-60+ minutes depending on network speed). Everything is cached on your network volume at `/data`, so it **persists across pod restarts**. You only run this once.
+Everything is saved to your network volume — **you only do this once**. Next time you start the pod, it's all still there.
 
-### Step 8: Train a Wake Word
+## Step 6: Train a Wake Word
 
 ```bash
 train_wake_word "hey jarvis"
 ```
 
-That's it! The training pipeline will:
-1. **Generate** synthetic voice samples using TTS
-2. **Augment** samples with background noise, room effects, pitch shifts, etc.
-3. **Train** a neural network (TensorFlow)
-4. **Output** a quantized `.tflite` model + `.json` metadata
-5. **Push to GitHub** (if configured)
-
-Your trained model will be in `/data/output/`.
+Done. Your model files will be in `/data/output/`.
 
 ---
 
-## When You Come Back Later
+## Next Time You Use It
 
-If you stop your pod and restart it later (or create a new pod with the same network volume), you just need to re-clone and source:
-
-```bash
-git clone https://github.com/BigPappy098/microWakeWord-Trainer-Nvidia-Docker.git /root/mww-scripts
-cp /root/mww-scripts/.bashrc ~/.bashrc
-source ~/.bashrc
-```
-
-The heavy stuff (Python venv + datasets) is already on your network volume. You can go straight to training:
+Just start your pod, connect, and train:
 
 ```bash
-train_wake_word "hey jarvis"
+train_wake_word "ok google"
 ```
+
+No setup needed — the network volume has everything cached.
 
 ---
 
@@ -116,8 +80,8 @@ train_wake_word "hey jarvis"
 train_wake_word [options] <wake_word> [<wake_word_title>]
 
 Options:
-  --samples=<N>           Number of TTS samples to generate (default: 50000)
-  --batch-size=<N>        Samples per generation batch (default: 100)
+  --samples=<N>           TTS samples to generate (default: 50000)
+  --batch-size=<N>        Samples per batch (default: 100)
   --training-steps=<N>    Training iterations (default: 40000)
   --language=<lang>       TTS language: "en", "nl", etc. (default: en)
   --cleanup-work-dir      Delete intermediate files after training
@@ -125,13 +89,16 @@ Options:
 
 Examples:
 ```bash
-# Quick test run (smaller sample/step count)
+# Quick test (fast, lower quality)
 train_wake_word --samples=1000 --training-steps=500 "hey jarvis"
 
-# Full training with custom title
-train_wake_word --samples=50000 --training-steps=40000 "hey jarvis" "Hey Jarvis"
+# Full quality training
+train_wake_word "hey jarvis"
 
-# Dutch wake word
+# Custom title
+train_wake_word "hey jarvis" "Hey Jarvis"
+
+# Dutch
 train_wake_word --language=nl "hallo computer"
 ```
 
@@ -139,131 +106,101 @@ train_wake_word --language=nl "hallo computer"
 
 ## Output Files
 
-After training, your model files are saved to:
-
 ```
-/data/output/<timestamp>-<wake_word>-<samples>-<steps>/
-  <wake_word>.tflite    # Quantized model for microcontrollers
-  <wake_word>.json      # ESPHome-compatible metadata
-  logs/                 # Training logs and TensorBoard data
+/data/output/<timestamp>-<wake_word>/
+  <wake_word>.tflite    # Model for ESP32 / ESPHome
+  <wake_word>.json      # ESPHome metadata
+  logs/                 # Training logs
 ```
 
-The `.tflite` file is what you flash to your ESP32 or other device via ESPHome.
+Flash the `.tflite` file to your device via ESPHome.
 
 ---
 
 ## Personal Voice Samples (Optional)
 
-Recording your own voice improves accuracy. Since there's no microphone on RunPod, record `.wav` files on your local machine and upload them.
-
-### Requirements
-- 16kHz sample rate
-- WAV format (PCM 16-bit)
-- One wake word utterance per file
-
-### Upload to RunPod
+Recording your own voice improves accuracy. Record `.wav` files locally (16kHz, PCM 16-bit) and upload them:
 
 ```bash
-# From your local machine:
-scp -P <port> speaker01_take*.wav root@<pod-ip>:/data/personal_samples/
+# From your local machine
+scp -P <port> *.wav root@<pod-ip>:/data/personal_samples/
 ```
 
-### File naming convention
+Name them like `speaker01_take01.wav`, `speaker01_take02.wav`, etc.
 
-```
-/data/personal_samples/
-  speaker01_take01.wav
-  speaker01_take02.wav
-  speaker02_take01.wav
-  ...
-```
-
-Personal samples are automatically detected and given **3x sampling weight** during training — no extra configuration needed.
+They're automatically detected and weighted 3x during training.
 
 ---
 
 ## GitHub Integration
 
-Automatically push trained model files to a GitHub repository after training completes.
+Auto-push trained models to a GitHub repo after each training run.
 
-### Create a GitHub Token
+### Create a Token
 
-1. Go to [GitHub Settings → Developer settings → Personal access tokens → Tokens (classic)](https://github.com/settings/tokens)
-2. Click **Generate new token (classic)**
-3. Give it a name like `mww-trainer`
-4. Select the `repo` scope
-5. Copy the token
+1. Go to **GitHub** → **Settings** → **Developer settings** → **Personal access tokens** → **Tokens (classic)**
+2. Generate a new token with the **repo** scope
+3. Copy it
 
 ### Set Environment Variables
 
-You can set these in RunPod's pod **Environment Variables** (so they persist across restarts), or export them in your SSH session:
+Add these in your RunPod pod settings (so they persist), or export them:
 
 ```bash
 export GITHUB_TOKEN=ghp_your_token_here
 export GITHUB_REPO=yourusername/your-wakewords-repo
 ```
 
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| `GITHUB_TOKEN` | Yes | — | GitHub Personal Access Token with `repo` scope |
-| `GITHUB_REPO` | Yes | — | Target repo in `owner/repo` format |
-| `GITHUB_BRANCH` | No | `main` | Branch to push to |
-| `GITHUB_PATH` | No | `.` | Directory within the repo for model files |
-| `GITHUB_COMMIT_MSG` | No | Auto-generated | Custom commit message |
+| Variable | Required | Description |
+|---|---|---|
+| `GITHUB_TOKEN` | Yes | Personal access token with `repo` scope |
+| `GITHUB_REPO` | Yes | Target repo (`owner/repo` format) |
+| `GITHUB_BRANCH` | No | Branch to push to (default: `main`) |
+| `GITHUB_PATH` | No | Directory in repo for models (default: `.`) |
 
-After training completes, the `.tflite` and `.json` files are automatically committed and pushed. If the env vars aren't set, this step is silently skipped.
+If these aren't set, the GitHub push step is silently skipped.
 
 ---
 
-## Other Useful Commands
+## Other Commands
 
 ```bash
-setup                    # Run full setup (venv + datasets)
-setup_python_venv        # Set up just the Python environment
-setup_training_datasets  # Download just the training datasets
-cudainfo                 # Show GPU information
-system_summary           # Show system stats (CPU, RAM, disk, GPU)
+setup                    # Full setup (venv + datasets)
+setup_python_venv        # Just the Python environment
+setup_training_datasets  # Just the datasets
+cudainfo                 # GPU info
+system_summary           # CPU, RAM, disk, GPU stats
 nvidia-smi               # NVIDIA GPU status
 ```
 
 ---
 
-## Re-training and Multiple Wake Words
+## Multiple Wake Words
 
-- Train **multiple wake words** back-to-back — no cleanup needed between runs
-- Each run creates a **new timestamped output directory**
-- Old models are preserved
-- Intermediate work files in `/data/work/` are reused when possible
-
----
+Train as many as you want, back-to-back. No cleanup needed — each run gets its own output folder.
 
 ## Resetting Everything
-
-To start completely fresh, delete the data volume contents:
 
 ```bash
 rm -rf /data/*
 ```
 
-Then run `setup` again. This removes cached datasets, the Python venv, and all trained models.
+Then run `setup` again.
 
----
+## Storage Breakdown
 
-## Storage Requirements
+| What | Size |
+|---|---|
+| Python environment | ~5 GB |
+| Training datasets | ~40 GB |
+| Tools & TTS models | ~3 GB |
+| Work files (per run) | ~10 GB |
+| **Total** | **~60 GB** |
 
-| Directory | Purpose | Size |
-|---|---|---|
-| `/data/.venv/` | Python environment | ~5 GB |
-| `/data/training_datasets/` | Audio corpora | ~40 GB |
-| `/data/tools/` | Git clones + TTS models | ~3 GB |
-| `/data/work/` | Temporary training artifacts | ~10 GB |
-| `/data/output/` | Trained models | ~10 MB per model |
-| **Total** | | **~60 GB minimum** |
-
-A **100 GB network volume** is recommended for comfortable headroom.
+100 GB network volume recommended.
 
 ---
 
 ## Credits
 
-Built on top of [microWakeWord](https://github.com/kahrendt/microWakeWord) by Kevin Ahrendt.
+Built on [microWakeWord](https://github.com/kahrendt/microWakeWord) by Kevin Ahrendt.
