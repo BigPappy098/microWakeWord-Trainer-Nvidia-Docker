@@ -188,7 +188,7 @@ fi
 echo "   ===== Installing TensorFlow stack (${TF_SPEC}) ====="
 pip_install "${tf_install_specs[@]}"
 
-${GPU} && torchgpu='--index-url https://download.pytorch.org/whl/cu129' || torchgpu=""
+${GPU} && torchgpu='--index-url https://download.pytorch.org/whl/cu126' || torchgpu=""
 echo "   ===== Installing torch and torchaudio ${torchgpu:+[cuda]} ====="
 pip_install "torch==2.9.1" "torchaudio==2.9.1" ${torchgpu}
 
