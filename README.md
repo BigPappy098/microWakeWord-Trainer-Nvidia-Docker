@@ -25,7 +25,7 @@ This is where your datasets, Python environment, and trained models are stored. 
 2. Pick any NVIDIA GPU (RTX 3090, RTX 4090, A40, etc.)
 3. Click **Edit Template** and set the **Docker image** to:
    ```
-   ghcr.io/bigpappy098/microwakeword-trainer:latest
+   ghcr.io/bigpappy098/microwakeword-trainer-nvidia-docker:latest
    ```
 4. Attach your **network volume** from Step 2 and set the mount path to `/data`
 5. **(Optional)** Add environment variables to auto-push models to GitHub after training:
