@@ -148,8 +148,10 @@ cat <<-'EOF'
     Other commands:
       cudainfo                         - Show GPU information
       system_summary                   - Show system stats
+      pull_personal_recordings         - Pull recordings from your GitHub fork
 
-    Personal voice samples: place .wav files in /data/personal_samples/
-    GitHub push: set GITHUB_TOKEN and GITHUB_REPO env vars
+    Personal recordings:
+      Add .wav files to personal_samples/ in your GitHub fork.
+      Set GITHUB_TOKEN and GITHUB_REPO env vars to enable auto-pull + push.
 
 EOF

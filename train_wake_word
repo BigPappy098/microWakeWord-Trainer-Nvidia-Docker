@@ -63,6 +63,9 @@ mkdir -p "${DATA_DIR}/work" || :
 # Ensure training datasets are present (idempotent — skips already-downloaded sets)
 "${CLIDIR}/setup_training_datasets" --data-dir="${DATA_DIR}"
 
+# Pull personal recordings from user's GitHub fork (if configured)
+"${CLIDIR}/pull_personal_recordings" --data-dir="${DATA_DIR}"
+
 [ ${#POSITIONAL_ARGS} -eq 2 ] && WAKE_WORD_TITLE="${POSITIONAL_ARGS[1]}" || :
 
 if [ ! -v WAKE_WORD_TITLE ] ; then

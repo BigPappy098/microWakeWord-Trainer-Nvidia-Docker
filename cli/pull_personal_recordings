@@ -1,0 +1,85 @@
+#!/bin/bash
+# pull_personal_recordings
+# -------------------------------------------------------------------------
+# Pulls personal .wav recordings from the user's GitHub fork into
+# /data/personal_samples/ for use during training.
+#
+# Uses the same GITHUB_TOKEN + GITHUB_REPO env vars as github_push.sh.
+# If neither is set, or no recordings are found, this is a no-op.
+# -------------------------------------------------------------------------
+set -e
+
+PROGPATH=$(realpath "$0")
+PROGDIR=$(dirname "${PROGPATH}")
+
+KNOWN_ARGS=( data-dir )
+source "${PROGDIR}/shell.functions"
+
+if [ -z "${GITHUB_TOKEN:-}" ] || [ -z "${GITHUB_REPO:-}" ]; then
+    echo "ℹ️  GitHub not configured (GITHUB_REPO/GITHUB_TOKEN not set) — skipping recording pull."
+    exit 0
+fi
+
+GITHUB_BRANCH="${GITHUB_BRANCH:-main}"
+RECORDINGS_PATH="${GITHUB_RECORDINGS_PATH:-personal_samples}"
+TARGET_DIR="${DATA_DIR}/personal_samples"
+
+echo "===== Checking for personal recordings in ${GITHUB_REPO}/${RECORDINGS_PATH} ====="
+
+# Use GitHub API to list contents of the recordings directory
+API_URL="https://api.github.com/repos/${GITHUB_REPO}/contents/${RECORDINGS_PATH}?ref=${GITHUB_BRANCH}"
+
+RESPONSE=$(curl -sf \
+    -H "Authorization: token ${GITHUB_TOKEN}" \
+    -H "Accept: application/vnd.github.v3+json" \
+    "${API_URL}" 2>/dev/null) || {
+    echo "ℹ️  No '${RECORDINGS_PATH}/' directory found in ${GITHUB_REPO} (branch: ${GITHUB_BRANCH}) — skipping."
+    exit 0
+}
+
+# Extract .wav download URLs via Python (available in the container)
+WAV_URLS=$(python3 -c "
+import sys, json
+items = json.loads(sys.stdin.read())
+if not isinstance(items, list):
+    sys.exit(0)
+for f in items:
+    name = f.get('name', '')
+    url = f.get('download_url', '')
+    if name.lower().endswith('.wav') and url:
+        print(url)
+" <<< "${RESPONSE}" 2>/dev/null) || true
+
+if [ -z "${WAV_URLS}" ]; then
+    echo "ℹ️  No .wav files found in ${GITHUB_REPO}/${RECORDINGS_PATH} — skipping."
+    exit 0
+fi
+
+WAV_COUNT=$(echo "${WAV_URLS}" | wc -l)
+echo "   Found ${WAV_COUNT} recording(s) — downloading to ${TARGET_DIR}"
+
+mkdir -p "${TARGET_DIR}"
+
+DOWNLOADED=0
+FAILED=0
+while IFS= read -r url; do
+    [ -z "$url" ] && continue
+    filename=$(basename "$url")
+    if curl -sfL \
+        -H "Authorization: token ${GITHUB_TOKEN}" \
+        -o "${TARGET_DIR}/${filename}" \
+        "${url}" ; then
+        DOWNLOADED=$((DOWNLOADED + 1))
+        echo "   ✓ ${filename}"
+    else
+        FAILED=$((FAILED + 1))
+        echo "   ✗ ${filename} (download failed)"
+    fi
+done <<< "${WAV_URLS}"
+
+echo
+if [ ${FAILED} -gt 0 ]; then
+    echo "⚠️  Downloaded ${DOWNLOADED}/${WAV_COUNT} recording(s) (${FAILED} failed)"
+else
+    echo "✅ Downloaded ${DOWNLOADED} personal recording(s) to ${TARGET_DIR}"
+fi
