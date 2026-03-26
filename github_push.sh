@@ -11,7 +11,7 @@ if [ -z "${GITHUB_TOKEN:-}" ] || [ -z "${GITHUB_REPO:-}" ]; then
 fi
 
 GITHUB_BRANCH="${GITHUB_BRANCH:-main}"
-GITHUB_PATH="${GITHUB_PATH:-models}"
+GITHUB_PATH="${GITHUB_PATH:-.}"
 
 # Find latest output directory
 LATEST_OUTPUT="$(find "${OUTPUT_DIR}" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort | tail -1)"
