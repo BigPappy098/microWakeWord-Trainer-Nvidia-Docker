@@ -71,7 +71,8 @@ mkdir -p "${DATA_DIR}/work" || :
 "${CLIDIR}/setup_training_datasets" --data-dir="${DATA_DIR}"
 
 # Pull personal recordings from user's GitHub fork (if configured)
-"${CLIDIR}/pull_personal_recordings" --data-dir="${DATA_DIR}"
+# Looks for personal_samples/<wake_word>/ subfolder first, falls back to root
+"${CLIDIR}/pull_personal_recordings" --data-dir="${DATA_DIR}" --wake-word="${WAKE_WORD}"
 
 [ ${#POSITIONAL_ARGS} -eq 2 ] && WAKE_WORD_TITLE="${POSITIONAL_ARGS[1]}" || :
 
@@ -81,6 +82,10 @@ if [ ! -v WAKE_WORD_TITLE ] ; then
 elif [ -z "$WAKE_WORD_TITLE" ] ; then
     WAKE_WORD_TITLE="$WAKE_WORD"
 fi
+
+# Sanitized wake word for personal samples subfolder
+WAKE_WORD_DIR=$(echo "${WAKE_WORD}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/_/g; s/__*/_/g; s/^_//; s/_$//')
+PERSONAL_DIR="${DATA_DIR}/personal_samples/${WAKE_WORD_DIR}"
 
 printf "%-80s\n" "=" | tr ' ' "="
 echo "===== Running '${WAKE_WORD}(${WAKE_WORD_TITLE})' generation, augmentation and training ====="
@@ -205,7 +210,7 @@ AUGMENTED_DIR="${DATA_DIR}/work/wake_word_samples_augmented"
 if ${AUGMENT} ; then
     rm -rf "${AUGMENTED_DIR}" || :
     mkdir -p "${AUGMENTED_DIR}" || :
-    python -u "${CLIDIR}/wake_word_sample_augmenter" --data-dir="${DATA_DIR}" || { rm -rf "${AUGMENTED_DIR}" ; exit 1 ; }
+    python -u "${CLIDIR}/wake_word_sample_augmenter" --data-dir="${DATA_DIR}" --personal-dir="${PERSONAL_DIR}" || { rm -rf "${AUGMENTED_DIR}" ; exit 1 ; }
 else
     echo "Augmentation not required"
     echo

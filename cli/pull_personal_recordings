@@ -2,21 +2,28 @@
 # pull_personal_recordings
 # -------------------------------------------------------------------------
 # Pulls personal recordings from the user's GitHub fork into
-# /data/personal_samples/ for use during training.
+# /data/personal_samples/<wake_word>/ for use during training.
 #
 # Accepts any common audio format (wav, mp3, flac, ogg, m4a, webm).
 # All files are auto-converted to 16kHz, 16-bit PCM, mono WAV.
 #
 # Uses the same GITHUB_TOKEN + GITHUB_REPO env vars as github_push.sh.
 # If neither is set, or no recordings are found, this is a no-op.
+#
+# When --wake-word is provided, looks for a matching subfolder:
+#   personal_samples/<wake_word>/   (e.g. personal_samples/hey_airuh_gorn/)
+# Falls back to personal_samples/ root if no subfolder exists.
 # -------------------------------------------------------------------------
 set -e
 
 PROGPATH=$(realpath "$0")
 PROGDIR=$(dirname "${PROGPATH}")
 
-KNOWN_ARGS=( data-dir )
+KNOWN_ARGS=( data-dir wake-word )
 source "${PROGDIR}/shell.functions"
+
+# Wake word from --wake-word= or first positional arg
+WAKE_WORD="${WAKE_WORD:-${POSITIONAL_ARGS[0]:-}}"
 
 if [ -z "${GITHUB_TOKEN:-}" ] || [ -z "${GITHUB_REPO:-}" ]; then
     echo "ℹ️  GitHub not configured (GITHUB_REPO/GITHUB_TOKEN not set) — skipping recording pull."
@@ -25,23 +32,62 @@ fi
 
 GITHUB_BRANCH="${GITHUB_BRANCH:-main}"
 RECORDINGS_PATH="${GITHUB_RECORDINGS_PATH:-personal_samples}"
-TARGET_DIR="${DATA_DIR}/personal_samples"
 
 # Supported audio extensions (case-insensitive matching)
 AUDIO_EXTS="wav mp3 flac ogg m4a webm aac wma"
 
-echo "===== Checking for personal recordings in ${GITHUB_REPO}/${RECORDINGS_PATH} ====="
-
-# Use GitHub API to list contents of the recordings directory
-API_URL="https://api.github.com/repos/${GITHUB_REPO}/contents/${RECORDINGS_PATH}?ref=${GITHUB_BRANCH}"
-
-RESPONSE=$(curl -sf \
-    -H "Authorization: token ${GITHUB_TOKEN}" \
-    -H "Accept: application/vnd.github.v3+json" \
-    "${API_URL}" 2>/dev/null) || {
-    echo "ℹ️  No '${RECORDINGS_PATH}/' directory found in ${GITHUB_REPO} (branch: ${GITHUB_BRANCH}) — skipping."
-    exit 0
+# ---------------------------------------------------------------------------
+# Sanitize wake word into a folder name:
+#   "hey airuh gorn" → "hey_airuh_gorn"
+#   "Yo Chungus"     → "yo_chungus"
+# ---------------------------------------------------------------------------
+sanitize_folder_name() {
+    echo "$1" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/_/g; s/__*/_/g; s/^_//; s/_$//'
 }
+
+# ---------------------------------------------------------------------------
+# Determine which GitHub directory to pull from.
+# Priority:
+#   1. personal_samples/<sanitized_wake_word>/  (wake-word-specific)
+#   2. personal_samples/                        (fallback — all recordings)
+# ---------------------------------------------------------------------------
+GITHUB_SUBDIR=""
+WAKE_WORD_DIR=""
+
+if [ -n "${WAKE_WORD}" ]; then
+    WAKE_WORD_DIR=$(sanitize_folder_name "${WAKE_WORD}")
+    TRY_SUBDIR="${RECORDINGS_PATH}/${WAKE_WORD_DIR}"
+
+    echo "===== Checking for personal recordings in ${GITHUB_REPO}/${TRY_SUBDIR} ====="
+    API_URL="https://api.github.com/repos/${GITHUB_REPO}/contents/${TRY_SUBDIR}?ref=${GITHUB_BRANCH}"
+    RESPONSE=$(curl -sf \
+        -H "Authorization: token ${GITHUB_TOKEN}" \
+        -H "Accept: application/vnd.github.v3+json" \
+        "${API_URL}" 2>/dev/null) && GITHUB_SUBDIR="${TRY_SUBDIR}" || {
+        echo "   No '${TRY_SUBDIR}/' subfolder found — checking root ${RECORDINGS_PATH}/"
+    }
+fi
+
+# Fall back to root recordings directory
+if [ -z "${GITHUB_SUBDIR}" ]; then
+    GITHUB_SUBDIR="${RECORDINGS_PATH}"
+    echo "===== Checking for personal recordings in ${GITHUB_REPO}/${GITHUB_SUBDIR} ====="
+    API_URL="https://api.github.com/repos/${GITHUB_REPO}/contents/${GITHUB_SUBDIR}?ref=${GITHUB_BRANCH}"
+    RESPONSE=$(curl -sf \
+        -H "Authorization: token ${GITHUB_TOKEN}" \
+        -H "Accept: application/vnd.github.v3+json" \
+        "${API_URL}" 2>/dev/null) || {
+        echo "ℹ️  No '${GITHUB_SUBDIR}/' directory found in ${GITHUB_REPO} (branch: ${GITHUB_BRANCH}) — skipping."
+        exit 0
+    }
+fi
+
+# Determine local target directory
+if [ -n "${WAKE_WORD_DIR}" ]; then
+    TARGET_DIR="${DATA_DIR}/personal_samples/${WAKE_WORD_DIR}"
+else
+    TARGET_DIR="${DATA_DIR}/personal_samples"
+fi
 
 # Extract audio file download URLs via Python (available in the container)
 AUDIO_URLS=$(python3 -c "
@@ -58,7 +104,7 @@ for f in items:
 " <<< "${RESPONSE}" 2>/dev/null) || true
 
 if [ -z "${AUDIO_URLS}" ]; then
-    echo "ℹ️  No audio files found in ${GITHUB_REPO}/${RECORDINGS_PATH} — skipping."
+    echo "ℹ️  No audio files found in ${GITHUB_REPO}/${GITHUB_SUBDIR} — skipping."
     exit 0
 fi
 

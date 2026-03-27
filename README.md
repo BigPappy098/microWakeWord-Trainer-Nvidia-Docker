@@ -36,7 +36,18 @@ Recording your own voice saying the wake word improves detection accuracy. These
 2. Name the files: `speaker01_take01.wav`, `speaker01_take02.wav`, etc.
    - For multiple people: `speaker02_take01.wav`, `speaker02_take02.wav`, etc.
    - Aim for **10+ takes per speaker**
-3. Add the audio files to the `personal_samples/` folder in your fork
+3. Create a subfolder in `personal_samples/` matching your wake word, then add files there:
+   ```
+   personal_samples/
+     hey_airuh_gorn/
+       speaker01_take01.m4a
+       speaker01_take02.m4a
+     yo_chungus/
+       speaker01_take01.wav
+       speaker02_take01.wav
+   ```
+   The folder name should be your wake word in lowercase with spaces as underscores.
+   This keeps recordings organized so training only uses the right samples for each wake word.
 4. Commit and push them to GitHub
 
 **Tips for good recordings:**
