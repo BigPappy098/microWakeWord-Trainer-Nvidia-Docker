@@ -11,26 +11,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
  && rm -rf /var/lib/apt/lists/* \
  && mkdir -p /data
 
-# Script root
+# Clone the trainer repo so users can `git pull` to get updates
+# without rebuilding the Docker image.
+RUN git clone https://github.com/BigPappy098/microWakeWord-Trainer-Nvidia-Docker.git /root/mww-scripts \
+ && chmod -R a+x /root/mww-scripts/cli \
+ && chmod +x /root/mww-scripts/train_wake_word \
+              /root/mww-scripts/setup \
+              /root/mww-scripts/entrypoint.sh \
+              /root/mww-scripts/github_push.sh \
+ && ln -sf /root/mww-scripts/.bashrc /root/.bashrc
+
 WORKDIR /root/mww-scripts
-
-# Bash environment
-COPY --chown=root:root --chmod=0755 .bashrc /root/
-
-# Root-level scripts
-COPY --chown=root:root --chmod=0755 \
-    train_wake_word \
-    setup \
-    entrypoint.sh \
-    github_push.sh \
-    requirements.txt \
-    /root/mww-scripts/
-
-# CLI folder
-COPY --chown=root:root cli/ /root/mww-scripts/cli/
-
-# Make all CLI scripts executable (avoids "Permission denied")
-RUN chmod -R a+x /root/mww-scripts/cli
 
 # No args = interactive bash shell; "train <wake_word>" = full pipeline
 ENTRYPOINT ["/root/mww-scripts/entrypoint.sh"]

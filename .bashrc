@@ -150,8 +150,11 @@ cat <<-'EOF'
       system_summary                   - Show system stats
       pull_personal_recordings         - Pull recordings from your GitHub fork
 
+    Updating scripts:
+      cd ~/mww-scripts && git pull     - Pull latest trainer updates
+
     Personal recordings:
-      Add .wav files to personal_samples/ in your GitHub fork.
+      Add audio files to personal_samples/<wake_word>/ in your GitHub fork.
       Set GITHUB_TOKEN and GITHUB_REPO env vars to enable auto-pull + push.
 
 EOF
