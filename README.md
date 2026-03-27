@@ -114,7 +114,7 @@ This runs the full pipeline:
 4. **Augments** all samples (pitch shifting, background noise, room acoustics)
 5. **Trains** the neural network (~40,000 steps)
 6. **Outputs** a quantized `.tflite` model ready for ESP32
-7. **Pushes** the model to your GitHub fork (if configured)
+7. **Pushes** the model to your GitHub fork's `models/` folder (if configured)
 
 During the preview step, you'll see the path to a `.wav` file. Download it from RunPod's file browser and listen on your phone or computer. If it sounds wrong, type `n` to cancel and try respelling the word phonetically.
 
@@ -142,14 +142,14 @@ Add the model to your ESPHome device config by pointing to the JSON file's raw U
 ```yaml
 micro_wake_word:
   models:
-    - model: https://raw.githubusercontent.com/<your-username>/microWakeWord-Trainer-Nvidia-Docker/refs/heads/main/<wake_word>.json
+    - model: https://raw.githubusercontent.com/<your-username>/microWakeWord-Trainer-Nvidia-Docker/refs/heads/main/models/<wake_word>.json
   on_wake_word_detected:
     - logger.log: "Wake word detected!"
 ```
 
 The JSON file contains the model reference, probability cutoff, and sliding window settings — ESPHome handles everything automatically.
 
-To get the raw URL: go to your fork on GitHub, navigate to `<wake_word>.json`, click **Raw**, and copy the URL.
+To get the raw URL: go to your fork on GitHub, navigate to `models/<wake_word>.json`, click **Raw**, and copy the URL.
 
 ---
 
@@ -208,7 +208,7 @@ Set these in your RunPod pod settings so they persist across restarts.
 | `GITHUB_TOKEN` | Yes | Personal access token with `repo` scope |
 | `GITHUB_REPO` | Yes | Your fork in `owner/repo` format |
 | `GITHUB_BRANCH` | No | Branch to use (default: `main`) |
-| `GITHUB_PATH` | No | Directory in repo for trained models (default: `.`) |
+| `GITHUB_PATH` | No | Directory in repo for trained models (default: `models`) |
 | `GITHUB_RECORDINGS_PATH` | No | Directory in repo for recordings (default: `personal_samples`) |
 
 If `GITHUB_TOKEN` and `GITHUB_REPO` aren't set, recording pull and model push are silently skipped. Everything else still works.
