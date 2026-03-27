@@ -238,7 +238,7 @@ nvidia-smi                  # NVIDIA GPU status
 
 **"No personal_samples/ directory found"** — This is fine. It just means you haven't added recordings to your fork. Training continues with synthetic samples only.
 
-**Pod runs out of disk** — Make sure your network volume is at least 100GB. Run `train_wake_word --cleanup-work-dir "..."` to clean up intermediate files after training.
+**Pod runs out of disk** — Make sure your network volume is at least 100GB. Download archives and intermediate files are cleaned up automatically during setup. Use `--cleanup-work-dir` with `train_wake_word` to also remove working files after training completes.
 
 ---
 
@@ -246,13 +246,13 @@ nvidia-smi                  # NVIDIA GPU status
 
 | What | Size |
 |---|---|
-| Python environment | ~5 GB |
-| Training datasets | ~40 GB |
+| Python environment | ~15-20 GB |
+| Training datasets (converted 16k WAVs) | ~55 GB |
 | Tools & TTS models | ~3 GB |
 | Work files (per run) | ~10 GB |
-| **Total** | **~60 GB** |
+| **Total** | **~85 GB** |
 
-100 GB network volume recommended.
+Download archives and pre-conversion files are automatically cleaned up during setup to save space. 100 GB network volume recommended (150 GB+ if you want extra headroom).
 
 ---
 
@@ -268,4 +268,8 @@ Then run `setup` again.
 
 ## Credits
 
-Built on [microWakeWord](https://github.com/kahrendt/microWakeWord) by Kevin Ahrendt.
+This project is a CLI-focused fork built for RunPod, standing on the shoulders of:
+
+- **[microWakeWord](https://github.com/kahrendt/microWakeWord)** by [Kevin Ahrendt](https://github.com/kahrendt) — The core wake word detection engine and MixedNet model architecture for ESP32/ESPHome
+- **[microWakeWord-Trainer-Nvidia-Docker](https://github.com/TaterTotterson/microWakeWord-Trainer-Nvidia-Docker)** by [TaterTotterson](https://github.com/TaterTotterson) — The original Docker-based training environment, dataset pipeline, sample augmentation, and training scripts that this fork is built from
+- **[piper-sample-generator](https://github.com/TaterTotterson/piper-sample-generator)** by [TaterTotterson](https://github.com/TaterTotterson) — TTS sample generation using Piper voices for training data
