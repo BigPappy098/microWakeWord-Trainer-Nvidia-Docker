@@ -139,6 +139,43 @@ export GRPC_VERBOSITY=ERROR
 # wake word sounds correct before committing to the full generation run.
 # Use --no-preview to skip this step.
 # ---------------------------------------------------------------------------
+
+# Upload a preview WAV to GitHub so users can listen from the browser.
+# Usage: upload_preview_to_github <local_file> <commit_message>
+upload_preview_to_github() {
+    local file="$1" msg="$2"
+    [ -n "${GITHUB_TOKEN:-}" ] && [ -n "${GITHUB_REPO:-}" ] || return 1
+    [ -f "${file}" ] || return 1
+
+    local gh_branch="${GITHUB_BRANCH:-main}"
+    local gh_path="previews/${WAKE_WORD_DIR}_preview.wav"
+    local content
+    content=$(base64 -w0 "${file}")
+
+    # Get existing SHA if file already exists (required for updates)
+    local sha
+    sha=$(curl -sf \
+        -H "Authorization: token ${GITHUB_TOKEN}" \
+        -H "Accept: application/vnd.github.v3+json" \
+        "https://api.github.com/repos/${GITHUB_REPO}/contents/${gh_path}?ref=${gh_branch}" \
+        2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('sha',''))" 2>/dev/null) || sha=""
+
+    local payload
+    if [ -n "${sha}" ]; then
+        payload="{\"message\":\"${msg}\",\"content\":\"${content}\",\"branch\":\"${gh_branch}\",\"sha\":\"${sha}\"}"
+    else
+        payload="{\"message\":\"${msg}\",\"content\":\"${content}\",\"branch\":\"${gh_branch}\"}"
+    fi
+
+    curl -sf -X PUT \
+        -H "Authorization: token ${GITHUB_TOKEN}" \
+        -H "Accept: application/vnd.github.v3+json" \
+        "https://api.github.com/repos/${GITHUB_REPO}/contents/${gh_path}" \
+        -d "${payload}" > /dev/null 2>&1 || return 1
+
+    echo "https://github.com/${GITHUB_REPO}/raw/${gh_branch}/${gh_path}"
+}
+
 if ! ${NO_PREVIEW:-false} ; then
     echo "===== Generating pronunciation preview ====="
     "${CLIDIR}/wake_word_sample_generator" \
@@ -149,18 +186,21 @@ if ! ${NO_PREVIEW:-false} ; then
 
     PREVIEW_FILE="${DATA_DIR}/work/test_sample/${WAKE_WORD//[ \`~\!@#\$%^&*\(\)\{\}\[\]\|\;\'\"<>.?\/]/_}.wav"
     if [ -f "${PREVIEW_FILE}" ] ; then
+        # Push preview to GitHub so user can download and listen
+        PREVIEW_URL=$(upload_preview_to_github "${PREVIEW_FILE}" "Preview: ${WAKE_WORD}") || PREVIEW_URL=""
+
         echo
         echo "=========================================="
         echo "  PRONUNCIATION PREVIEW"
         echo "=========================================="
         echo
-        echo "  Preview file: ${PREVIEW_FILE}"
-        echo
-        echo "  How to listen:"
-        echo "    RunPod: Use the file browser to navigate to"
-        echo "            ${PREVIEW_FILE}"
-        echo "            and download/play the .wav file"
-        echo "    SSH:    scp the file to your local machine"
+        if [ -n "${PREVIEW_URL}" ]; then
+            echo "  Download and listen:"
+            echo "    ${PREVIEW_URL}"
+        else
+            echo "  Preview file: ${PREVIEW_FILE}"
+            echo "  (Set GITHUB_TOKEN/GITHUB_REPO to auto-upload previews)"
+        fi
         echo
         echo "=========================================="
         echo
@@ -173,8 +213,13 @@ if ! ${NO_PREVIEW:-false} ; then
                 --batch-size=1 \
                 --language="${LANGUAGE}" \
                 --data-dir="${DATA_DIR}" "${WAKE_WORD}"
+            PREVIEW_URL=$(upload_preview_to_github "${PREVIEW_FILE}" "Preview: ${WAKE_WORD} (regenerated)") || PREVIEW_URL=""
             echo
-            echo "  Updated preview: ${PREVIEW_FILE}"
+            if [ -n "${PREVIEW_URL}" ]; then
+                echo "  Updated preview: ${PREVIEW_URL}"
+            else
+                echo "  Updated preview: ${PREVIEW_FILE}"
+            fi
             echo
             read -r -p "Continue with full training? [Y/n/r(egenerate)] " CONFIRM
         done
@@ -184,7 +229,11 @@ if ! ${NO_PREVIEW:-false} ; then
                 echo "Training cancelled. Tips:"
                 echo "  - Respell the wake word phonetically (e.g. 'hey air uh gorn' instead of 'hey aragon')"
                 echo "  - Try a different spelling and preview again"
-                echo "  - Preview file saved at: ${PREVIEW_FILE}"
+                if [ -n "${PREVIEW_URL}" ]; then
+                    echo "  - Preview uploaded at: ${PREVIEW_URL}"
+                else
+                    echo "  - Preview file saved at: ${PREVIEW_FILE}"
+                fi
                 exit 0
                 ;;
         esac
