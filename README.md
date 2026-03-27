@@ -177,6 +177,7 @@ Options:
   --language=<lang>       TTS language: "en", "nl", etc. (default: en)
   --no-preview            Skip pronunciation preview, start immediately
   --cleanup-work-dir      Delete intermediate files after training
+  --auto-stop             Stop the RunPod pod after training (saves credits)
 ```
 
 Examples:
@@ -192,6 +193,9 @@ train_wake_word "hey jarvis" "Hey Jarvis"
 
 # Skip pronunciation preview (for re-runs where you know it sounds right)
 train_wake_word --no-preview "hey jarvis"
+
+# Train and auto-stop pod when done (so you don't waste credits)
+train_wake_word --auto-stop "hey jarvis"
 
 # Dutch language
 train_wake_word --language=nl "hallo computer"
@@ -210,8 +214,13 @@ Set these in your RunPod pod settings so they persist across restarts.
 | `GITHUB_BRANCH` | No | Branch to use (default: `main`) |
 | `GITHUB_PATH` | No | Directory in repo for trained models (default: `models`) |
 | `GITHUB_RECORDINGS_PATH` | No | Directory in repo for recordings (default: `personal_samples`) |
+| `RUNPOD_API_KEY` | No | RunPod API key — enables `--auto-stop` to stop the pod after training |
+
+`RUNPOD_POD_ID` is set automatically by RunPod — you don't need to configure it.
 
 If `GITHUB_TOKEN` and `GITHUB_REPO` aren't set, recording pull and model push are silently skipped. Everything else still works.
+
+To get your RunPod API key: go to [runpod.io/console/user/settings](https://www.runpod.io/console/user/settings) and create one under **API Keys**.
 
 ---
 

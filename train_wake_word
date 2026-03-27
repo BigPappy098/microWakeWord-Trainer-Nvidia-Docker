@@ -5,7 +5,7 @@ PROGPATH=$(realpath "$0")
 PROGDIR=$(dirname "${PROGPATH}")
 CLIDIR="${PROGDIR}/cli"
 
-KNOWN_ARGS=( samples batch-size training-steps data-dir cleanup-work-dir language no-preview )
+KNOWN_ARGS=( samples batch-size training-steps data-dir cleanup-work-dir language no-preview auto-stop )
 source "${CLIDIR}/shell.functions"
 WAKE_WORD=${POSITIONAL_ARGS[0]}
 
@@ -38,6 +38,10 @@ Options:
 
 --no-preview:         Skip the pronunciation preview step and start generating
                       immediately.  Default: preview is enabled.
+
+--auto-stop:          Automatically stop the RunPod pod after training completes.
+                      Requires RUNPOD_API_KEY environment variable to be set.
+                      Saves credits when you're not around to stop it manually.
 
 --language:           Language for TTS voice selection (e.g. "en", "nl").
                       Default: ${DEFAULT_LANGUAGE}
@@ -239,3 +243,21 @@ python -c $'print(f"{\'=\' * 80}")'
 
 # Push trained model to GitHub (if configured via GITHUB_TOKEN + GITHUB_REPO)
 "${PROGDIR}/github_push.sh" || true
+
+# Auto-stop the RunPod pod if requested (saves credits when unattended)
+if ${AUTO_STOP} ; then
+    if [ -z "${RUNPOD_API_KEY:-}" ] ; then
+        echo "WARNING: --auto-stop requires RUNPOD_API_KEY environment variable. Pod will NOT be stopped." >&2
+    elif [ -z "${RUNPOD_POD_ID:-}" ] ; then
+        echo "WARNING: RUNPOD_POD_ID not set — not running on RunPod? Pod will NOT be stopped." >&2
+    else
+        echo
+        echo "Training complete. Stopping pod in 10 seconds... (Ctrl+C to cancel)"
+        sleep 10
+        echo "Stopping pod ${RUNPOD_POD_ID}..."
+        curl -sf -X POST "https://api.runpod.io/graphql?api_key=${RUNPOD_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\": \"mutation { podStop(input: { podId: \\\"${RUNPOD_POD_ID}\\\" }) { id } }\"}" \
+            > /dev/null && echo "Pod stopped." || echo "WARNING: Failed to stop pod. Stop it manually in the RunPod dashboard." >&2
+    fi
+fi
