@@ -5,7 +5,7 @@ PROGPATH=$(realpath "$0")
 PROGDIR=$(dirname "${PROGPATH}")
 CLIDIR="${PROGDIR}/cli"
 
-KNOWN_ARGS=( samples batch-size training-steps data-dir cleanup-work-dir language no-preview auto-stop )
+KNOWN_ARGS=( samples batch-size train-batch-size training-steps data-dir cleanup-work-dir language no-preview auto-stop )
 source "${CLIDIR}/shell.functions"
 WAKE_WORD=${POSITIONAL_ARGS[0]}
 
@@ -25,9 +25,13 @@ Options:
 --samples:            The number of samples to generate for the wake word.
                       Default: ${DEFAULT_SAMPLES}
 
---batch-size:         How many samples should be generated at a time.  The more
-                      samples per batch, the more memory is needed.
+--batch-size:         How many TTS samples should be generated at a time.  The
+                      more samples per batch, the more memory is needed.
                       Default: ${DEFAULT_BATCH_SIZE}
+
+--train-batch-size:   Batch size during model training.  Larger values keep the
+                      GPU busy and train faster.  Reduce if you hit OOM errors.
+                      Default: ${DEFAULT_TRAIN_BATCH_SIZE}
 
 --training-steps:     Number of training steps.  More training steps means better
                       detection and false positive rates but also more time to train.

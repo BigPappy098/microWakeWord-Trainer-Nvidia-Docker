@@ -4,7 +4,7 @@ set -e
 PROGPATH=$(realpath "$0")
 PROGDIR=$(dirname "${PROGPATH}")
 
-KNOWN_ARGS=( training-steps samples data-dir )
+KNOWN_ARGS=( training-steps train-batch-size samples data-dir )
 source "${PROGDIR}/shell.functions"
 WAKE_WORD="${POSITIONAL_ARGS[0]}"
 
@@ -22,6 +22,10 @@ Usage: $0 [ --samples=<samples> ] [ --training-steps=<steps> ]
 
 --samples:          The number of samples to generate for the wake word.
                     Used only to generate output file names.
+
+--train-batch-size: Batch size for model training. Larger values use more GPU
+                    and train faster. Reduce if you hit OOM errors.
+                    Default: ${DEFAULT_TRAIN_BATCH_SIZE}
 
 --training-steps:   Number of training steps.
                     Default: ${DEFAULT_TRAINING_STEPS}
@@ -113,7 +117,7 @@ fi
 
 cd "${WORK_DIR}"
 
-echo "===== Starting ${TRAINING_STEPS} training steps ====="
+echo "===== Starting ${TRAINING_STEPS} training steps (batch_size=${TRAIN_BATCH_SIZE}) ====="
 START_TS=$EPOCHSECONDS
 
 mkdir -p "${WORK_DIR}/trained_models" || :
@@ -121,8 +125,8 @@ mkdir -p "${WORK_DIR}/trained_models" || :
 # We write a YAML with a marker, then splice personal feature block in if it exists.
 YAML_PATH="${WORK_DIR}/trained_models/training_parameters.yaml"
 
-cat <<'EOF' > "${YAML_PATH}"
-batch_size: 16
+cat <<EOF > "${YAML_PATH}"
+batch_size: ${TRAIN_BATCH_SIZE}
 clip_duration_ms: 1500
 eval_step_interval: 500
 features:
