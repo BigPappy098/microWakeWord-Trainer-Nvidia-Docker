@@ -23,9 +23,10 @@ Usage: $0 [ --samples=<samples> ] [ --training-steps=<steps> ]
 --samples:          The number of samples to generate for the wake word.
                     Used only to generate output file names.
 
---train-batch-size: Batch size for model training. Larger values use more GPU
-                    and train faster. Reduce if you hit OOM errors.
-                    Auto-detected from GPU VRAM (current: ${DEFAULT_TRAIN_BATCH_SIZE})
+--train-batch-size: Batch size for model training. Higher values process
+                    more data per step — only increase if you also reduce
+                    --training-steps proportionally.
+                    Default: ${DEFAULT_TRAIN_BATCH_SIZE}
 
 --training-steps:   Number of training steps.
                     Default: ${DEFAULT_TRAINING_STEPS}
@@ -117,9 +118,7 @@ fi
 
 cd "${WORK_DIR}"
 
-GPU_VRAM=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | head -n1 | tr -d '[:space:]') || GPU_VRAM="?"
-GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -n1 | sed 's/^[[:space:]]*//;s/[[:space:]]*$//') || GPU_NAME="unknown"
-echo "===== Starting ${TRAINING_STEPS} training steps (batch_size=${TRAIN_BATCH_SIZE}, GPU: ${GPU_NAME} ${GPU_VRAM}MB) ====="
+echo "===== Starting ${TRAINING_STEPS} training steps (batch_size=${TRAIN_BATCH_SIZE}) ====="
 START_TS=$EPOCHSECONDS
 
 mkdir -p "${WORK_DIR}/trained_models" || :

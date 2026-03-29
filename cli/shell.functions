@@ -13,33 +13,7 @@ DEFAULT_BATCH_SIZE=100
 DEFAULT_TRAINING_STEPS=40000
 DEFAULT_LANGUAGE=en
 
-# Auto-detect training batch size based on GPU VRAM.
-# The default training_steps (40,000) was tuned for batch_size=16.
-# We increase batch size modestly (2-8x) to improve GPU utilization
-# without requiring training_steps adjustment.  Higher batch sizes
-# need proportionally fewer steps: double the batch = halve the steps.
-# The user can always override with --train-batch-size=N.
-auto_detect_train_batch_size() {
-    local vram_mb
-    vram_mb=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | head -n1 | tr -d '[:space:]') || vram_mb=""
-
-    if [ -z "${vram_mb}" ] || [ "${vram_mb}" -eq 0 ] 2>/dev/null; then
-        echo 16    # fallback if no GPU detected (original default)
-        return
-    fi
-
-    # Conservative scaling — keeps 40K steps reasonable while improving GPU utilization.
-    # Original upstream default was 16.  These are 2-8x that, which is enough to
-    # keep the GPU fed without massively increasing total training time.
-    if   [ "${vram_mb}" -ge 40960 ]; then echo 128   # 40GB+ (A100, A6000, H100)
-    elif [ "${vram_mb}" -ge 20480 ]; then echo 64    # 24-39GB (4090, RTX Pro 4500, L4)
-    elif [ "${vram_mb}" -ge 14336 ]; then echo 48    # 16GB  (4080, A4000, T4)
-    elif [ "${vram_mb}" -ge 8192  ]; then echo 32    # 8GB   (4060, 3060)
-    else                                  echo 16    # <8GB  (original default)
-    fi
-}
-
-DEFAULT_TRAIN_BATCH_SIZE=$(auto_detect_train_batch_size)
+DEFAULT_TRAIN_BATCH_SIZE=16
 
 [ -f "${DATA_DIR}/.defaults.env" ] && source "${DATA_DIR}/.defaults.env" || :
 

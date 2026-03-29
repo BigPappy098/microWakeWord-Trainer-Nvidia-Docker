@@ -29,9 +29,10 @@ Options:
                       more samples per batch, the more memory is needed.
                       Default: ${DEFAULT_BATCH_SIZE}
 
---train-batch-size:   Batch size during model training.  Larger values keep the
-                      GPU busy and train faster.  Reduce if you hit OOM errors.
-                      Auto-detected from GPU VRAM (current: ${DEFAULT_TRAIN_BATCH_SIZE})
+--train-batch-size:   Batch size during model training.  Higher values process
+                      more data per step — only increase if you also reduce
+                      --training-steps proportionally.
+                      Default: ${DEFAULT_TRAIN_BATCH_SIZE}
 
 --training-steps:     Number of training steps.  More training steps means better
                       detection and false positive rates but also more time to train.
