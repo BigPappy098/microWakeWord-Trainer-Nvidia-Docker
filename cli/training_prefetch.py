@@ -46,15 +46,15 @@ try:
         # -- internal helpers -----------------------------------------------
 
         @staticmethod
-        def _args_key(mode, kwargs):
+        def _args_key(args, kwargs):
             """Hashable snapshot of call arguments."""
-            return repr((mode, sorted((k, repr(v)) for k, v in kwargs.items())))
+            return repr((args, sorted((k, repr(v)) for k, v in kwargs.items())))
 
-        def _worker(self, mode, kwargs):
+        def _worker(self, args, kwargs):
             """Background thread: continuously produce batches."""
             try:
                 while not self._pf_stop.is_set():
-                    batch = _OrigFeatureHandler.get_data(self, mode, **kwargs)
+                    batch = _OrigFeatureHandler.get_data(self, *args, **kwargs)
                     try:
                         self._pf_q.put(batch, timeout=0.5)
                     except _queue_mod.Full:
@@ -63,13 +63,13 @@ try:
             except Exception:
                 pass            # thread dies → get_data falls back to sync
 
-        def _start_prefetch(self, mode, kwargs):
+        def _start_prefetch(self, args, kwargs):
             self._stop_prefetch()
-            self._pf_key = self._args_key(mode, kwargs)
+            self._pf_key = self._args_key(args, kwargs)
             self._pf_stop.clear()
             t = threading.Thread(
                 target=self._worker,
-                args=(mode, dict(kwargs)),   # copy kwargs for the thread
+                args=(args, dict(kwargs)),   # copy kwargs for the thread
                 daemon=True,
             )
             t.start()
@@ -90,13 +90,14 @@ try:
 
         # -- public API (drop-in replacement) --------------------------------
 
-        def get_data(self, mode, **kwargs):
+        def get_data(self, *args, **kwargs):
             # Only prefetch for training batches.
+            mode = args[0] if args else kwargs.get("mode", "")
             if mode != "training":
                 self._stop_prefetch()
-                return _OrigFeatureHandler.get_data(self, mode, **kwargs)
+                return _OrigFeatureHandler.get_data(self, *args, **kwargs)
 
-            key = self._args_key(mode, kwargs)
+            key = self._args_key(args, kwargs)
 
             # Happy path: prefetch running with matching args → grab a batch.
             if (self._pf_key == key
@@ -109,8 +110,8 @@ try:
 
             # First call, arg change, or dead thread → sync + (re)start.
             self._stop_prefetch()
-            result = _OrigFeatureHandler.get_data(self, mode, **kwargs)
-            self._start_prefetch(mode, kwargs)
+            result = _OrigFeatureHandler.get_data(self, *args, **kwargs)
+            self._start_prefetch(args, kwargs)
             return result
 
     # Install the patch.
