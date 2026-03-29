@@ -4,6 +4,7 @@ import sys, os, gc, glob, random
 import types
 from datetime import datetime, timezone
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from argparse import ArgumentParser as ArgParser, ArgumentError
 
 default_data_dir = os.getcwd() if os.path.exists(".mww-data-dir") else "/data"
@@ -228,13 +229,13 @@ def generate_feature_set(input_wav_dir: str, out_root_dir: str, label: str):
     out_root = Path(out_root_dir)
     out_root.mkdir(parents=True, exist_ok=True)
 
-    for split, cfg in split_cfg.items():
+    def _augment_split(split, cfg):
+        """Process one augmentation split.  Called from the thread pool.
+        Each thread builds its own SpectrogramGeneration + generator chain,
+        so the only shared object is ``augmenter`` (audiomentations is
+        C-backed and releases the GIL — safe for concurrent use)."""
         out_dir = out_root / split
         out_dir.mkdir(parents=True, exist_ok=True)
-
-        print(f"   Augmenting {split} ({label})")
-        print("   Sit tight this can take awhile ...")
-        print()
 
         spectros = SpectrogramGeneration(
             clips=clips,
@@ -254,8 +255,29 @@ def generate_feature_set(input_wav_dir: str, out_root_dir: str, label: str):
             batch_size=100,
             verbose=False,
         )
+        return split
 
-        print(f"      {split} augmentation complete ({label})")
+    # Run all splits concurrently — they write to separate output dirs and
+    # share read-only input.  The heavy lifting (librosa, audiomentations,
+    # numpy, I/O) releases the GIL, so threads give real parallelism here.
+    split_names = ", ".join(split_cfg.keys())
+    print(f"   Running {len(split_cfg)} splits in parallel: {split_names}")
+    print("   Sit tight, this can take a while ...")
+    print()
+
+    with ThreadPoolExecutor(max_workers=len(split_cfg)) as pool:
+        futures = {
+            pool.submit(_augment_split, split, cfg): split
+            for split, cfg in split_cfg.items()
+        }
+        for future in as_completed(futures):
+            split = futures[future]
+            try:
+                future.result()
+                print(f"      ✅ {split} augmentation complete ({label})")
+            except Exception as exc:
+                print(f"      ❌ {split} augmentation FAILED ({label}): {exc}")
+                raise
 
     print(f"\n✅ Features ready: {out_root_dir}/*/wakeword_mmap\n")
     return True
